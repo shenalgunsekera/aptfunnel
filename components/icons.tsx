@@ -16,6 +16,14 @@ export function TelegramIcon({ size = 20, className }: P) {
   );
 }
 
+export function MeetIcon({ size = 20, className }: P) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden>
+      <path d="M2 7.5A2.5 2.5 0 0 1 4.5 5h9A2.5 2.5 0 0 1 16 7.5v2.1l4.4-3.3A1 1 0 0 1 22 7.1v9.8a1 1 0 0 1-1.6.8L16 14.4v2.1a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 2 16.5v-9Z" />
+    </svg>
+  );
+}
+
 const stroke = {
   fill: "none",
   stroke: "currentColor",
@@ -100,6 +108,7 @@ export function CopyIcon({ size = 14 }: P) {
   );
 }
 
-export function PlatformIcon({ platform, size }: { platform: "discord" | "telegram"; size?: number }) {
+export function PlatformIcon({ platform, size }: { platform: "discord" | "telegram" | "meet"; size?: number }) {
+  if (platform === "meet") return <MeetIcon size={size} />;
   return platform === "discord" ? <DiscordIcon size={size} /> : <TelegramIcon size={size} />;
 }

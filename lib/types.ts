@@ -1,5 +1,5 @@
 export type MeetingType = "call" | "text";
-export type Platform = "discord" | "telegram";
+export type Platform = "discord" | "telegram" | "meet";
 export type BookingStatus = "confirmed" | "completed" | "no_show" | "cancelled";
 
 /** "HH:mm" in the admin's timezone */

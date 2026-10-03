@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { label12 } from "@/lib/time";
 import type { TimeRange } from "@/lib/types";
 
 export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -67,7 +68,9 @@ export function RangesEditor({ ranges, onChange }: { ranges: TimeRange[]; onChan
               onChange={(e) => update(i, { start: e.target.value })}
             >
               {TIME_OPTIONS.slice(0, -1).map((t) => (
-                <option key={t}>{t}</option>
+                <option key={t} value={t}>
+                  {label12(t)}
+                </option>
               ))}
             </select>
             <span className="muted">–</span>
@@ -79,7 +82,9 @@ export function RangesEditor({ ranges, onChange }: { ranges: TimeRange[]; onChan
               style={bad ? { borderColor: "var(--danger)" } : undefined}
             >
               {TIME_OPTIONS.slice(1).map((t) => (
-                <option key={t}>{t}</option>
+                <option key={t} value={t}>
+                  {label12(t)}
+                </option>
               ))}
             </select>
             <button
@@ -131,9 +136,9 @@ export async function api<T = any>(url: string, init?: RequestInit): Promise<T> 
   return data;
 }
 
-/** "YYYY-MM-DD" → date string for display in a given zone-independent way */
+/** Formats an instant in the admin timezone, always with a 12-hour clock */
 export function fmtInZone(iso: string, tz: string, opts: Intl.DateTimeFormatOptions) {
-  return new Intl.DateTimeFormat("en-GB", { timeZone: tz, ...opts }).format(new Date(iso));
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour12: true, ...opts }).format(new Date(iso));
 }
 
 export function relative(iso: string, now = Date.now()) {

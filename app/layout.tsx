@@ -8,7 +8,7 @@ const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
   title: { default: "Book a meeting · ThatPokerAgent", template: "%s · ThatPokerAgent" },
-  description: "Book a 1-on-1 voice call or text chat with ThatPokerAgent on Discord or Telegram.",
+  description: "Book a 1-on-1 voice call or text chat with ThatPokerAgent on Discord, Telegram or Google Meet.",
 };
 
 export const viewport: Viewport = {

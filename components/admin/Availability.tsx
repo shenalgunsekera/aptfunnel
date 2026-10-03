@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChatIcon, PhoneIcon } from "../icons";
 import { RangesEditor, Switch, WEEKDAYS, WEEK_ORDER, slotsInRanges } from "./shared";
-import { allTimezones, browserTimezone, tzLabel } from "@/lib/time";
+import { allTimezones, tzLabel } from "@/lib/time";
 import type { Settings } from "@/lib/types";
 
 type Draft = Pick<
@@ -35,11 +35,9 @@ type Props = {
 export default function Availability({ settings, save, onDirty }: Props) {
   const [draft, setDraft] = useState<Draft>(() => pick(settings));
   const [saving, setSaving] = useState(false);
-  const [browserTz, setBrowserTz] = useState<string | null>(null);
 
   const resync = useRef(false);
 
-  useEffect(() => setBrowserTz(browserTimezone()), []);
 
   // After a save, adopt what the server stored (it may tidy up ranges)
   useEffect(() => {
@@ -138,7 +136,7 @@ export default function Availability({ settings, save, onDirty }: Props) {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <select
                 className="select"
-                style={{ maxWidth: 360 }}
+                style={{ maxWidth: 360, width: "100%", minWidth: 0 }}
                 value={draft.timezone}
                 onChange={(e) => set("timezone", e.target.value)}
               >
@@ -148,13 +146,10 @@ export default function Availability({ settings, save, onDirty }: Props) {
                   </option>
                 ))}
               </select>
-              {browserTz && browserTz !== draft.timezone && (
-                <button className="btn" onClick={() => set("timezone", browserTz)}>
-                  Use {tzLabel(browserTz)}
-                </button>
-              )}
             </div>
-            <span className="hint">Your hours below are in this timezone. Players see times in their own timezone.</span>
+            <span className="hint">
+              {tzLabel(draft.timezone)}. Your hours below use this timezone, and players see times in it by default.
+            </span>
           </div>
 
           <div className="set-grid">

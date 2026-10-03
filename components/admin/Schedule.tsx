@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Calendar from "../Calendar";
 import { PlatformIcon } from "../icons";
+import { displayHandle } from "@/lib/validate";
 import { RangesEditor, WEEKDAYS, api, fmtInZone } from "./shared";
-import { dateKey, formatDay } from "@/lib/time";
+import { dateKey, formatDay, label12 } from "@/lib/time";
 import type { Booking, Settings, Slot, TimeRange } from "@/lib/types";
 
 type Props = {
@@ -67,8 +68,8 @@ export default function Schedule({ settings, bookings, save }: Props) {
 
   const openCount = daySlots.filter((s) => s.status === "open").length;
   const blockedCount = daySlots.filter((s) => s.status === "blocked").length;
-  const t = (iso: string) => fmtInZone(iso, tz, { hour: "2-digit", minute: "2-digit" });
-  const fmtRanges = (r: TimeRange[]) => r.map((x) => `${x.start}–${x.end}`).join(", ");
+  const t = (iso: string) => fmtInZone(iso, tz, { hour: "numeric", minute: "2-digit" });
+  const fmtRanges = (r: TimeRange[]) => r.map((x) => `${label12(x.start)} – ${label12(x.end)}`).join(", ");
 
   async function run(next: Settings, msg: string) {
     setBusy(true);
@@ -285,7 +286,7 @@ export default function Schedule({ settings, bookings, save }: Props) {
                           <span style={{ color: `var(--${b.platform})`, verticalAlign: "-2px" }}>
                             <PlatformIcon platform={b.platform} size={13} />
                           </span>{" "}
-                          @{b.handle}
+                          {displayHandle(b.handle, b.platform)}
                         </span>
                       </>
                     )}

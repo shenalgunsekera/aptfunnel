@@ -1,23 +1,30 @@
 import "server-only";
 import type { Booking } from "./types";
+import { PLATFORM_NAME } from "./validate";
 
 /** Posts new bookings to a Discord channel when DISCORD_WEBHOOK_URL is set. Never throws. */
 export async function notifyNewBooking(b: Booking, timezone: string) {
   const url = process.env.DISCORD_WEBHOOK_URL;
   if (!url) return;
-  const when = new Intl.DateTimeFormat("en-GB", {
+  const when = new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
     weekday: "short",
     day: "numeric",
     month: "short",
-    hour: "2-digit",
+    hour: "numeric",
+    hour12: true,
     minute: "2-digit",
   }).format(new Date(b.startsAt));
-  const handle = b.platform === "telegram" ? `[@${b.handle}](https://t.me/${b.handle})` : `@${b.handle}`;
+  const handle =
+    b.platform === "telegram"
+      ? `[@${b.handle}](https://t.me/${b.handle})`
+      : b.platform === "meet"
+        ? `invite to ${b.handle}`
+        : `@${b.handle}`;
   const lines = [
     `**New ${b.type} meeting** · ${when} (${timezone})`,
     `**${b.name}** · ClubGG: \`${b.clubgg}\``,
-    `${b.platform === "discord" ? "Discord" : "Telegram"}: ${handle} · ${b.email}`,
+    `${PLATFORM_NAME[b.platform]}: ${handle} · ${b.email}`,
     b.note ? `> ${b.note.replace(/\n/g, " ")}` : "",
   ].filter(Boolean);
   try {

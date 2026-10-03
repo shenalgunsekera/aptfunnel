@@ -367,7 +367,7 @@
 
 .slot-line {
   display: grid;
-  grid-template-columns: 120px 90px minmax(0, 1fr) auto;
+  grid-template-columns: 180px 90px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
   padding: 10px 0;
@@ -384,6 +384,7 @@
 
 .settings {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
   padding-bottom: 80px;
 }
@@ -527,6 +528,8 @@
 
 .ranges {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
   gap: 8px;
 }
 
@@ -540,7 +543,7 @@
 
 .range .select {
   height: 38px;
-  width: 112px;
+  width: 168px;
   font-size: 14px;
   padding: 0 10px;
 }
@@ -687,7 +690,7 @@
     grid-template-columns: 1fr;
   }
   .week-row {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 10px;
   }
   .slot-line {
@@ -716,5 +719,69 @@
   }
   .login {
     padding: 28px 20px;
+  }
+  /* Hour pickers share the row instead of wrapping */
+  .range {
+    flex-wrap: nowrap;
+  }
+  .range .select {
+    flex: 1;
+    width: auto;
+    min-width: 0;
+    height: 44px;
+    font-size: 16px;
+  }
+  .range .icon-btn {
+    flex: none;
+  }
+  .range .error-text {
+    display: none;
+  }
+  .bk-actions .select,
+  .select {
+    font-size: 16px;
+  }
+  .bk-actions .select {
+    flex: 1;
+    height: 40px;
+  }
+  .bk-actions .icon-btn {
+    width: 40px !important;
+    height: 40px !important;
+  }
+  .tabs button {
+    flex: 1;
+    padding: 14px 10px;
+  }
+  .seg {
+    width: 100%;
+  }
+  .seg button {
+    flex: 1;
+    height: 40px;
+    padding: 0 8px;
+  }
+  .toolbar .btn {
+    flex: 1;
+  }
+  .stat {
+    padding: 14px 16px;
+  }
+  .stat b {
+    font-size: 24px;
+  }
+  .panel {
+    padding: 16px;
+  }
+  .day-actions .btn {
+    flex: 1 1 auto;
+  }
+  .set-head,
+  .set-body {
+    padding: 16px;
+  }
+  .save-bar-inner {
+    padding: 10px 16px;
+    font-size: 13px;
   }
 }

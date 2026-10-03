@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { CopyIcon, PlatformIcon } from "../icons";
 import { api, fmtInZone, relative } from "./shared";
+import { displayHandle } from "@/lib/validate";
+import { tzLabel } from "@/lib/time";
 import type { Booking, BookingStatus, Settings } from "@/lib/types";
 
 type Filter = "upcoming" | "past" | "cancelled" | "all";
@@ -174,7 +176,7 @@ export default function Bookings({ bookings, setBookings, settings, reload, toas
       </div>
 
       <p className="muted" style={{ fontSize: 13, margin: "0 0 16px" }}>
-        {list.count} {list.count === 1 ? "booking" : "bookings"} · times in {tz.replace(/_/g, " ")}
+        {list.count} {list.count === 1 ? "booking" : "bookings"} · times in {tzLabel(tz)}
       </p>
 
       {list.count === 0 ? (
@@ -190,8 +192,8 @@ export default function Bookings({ bookings, setBookings, settings, reload, toas
               return (
                 <div key={b.id} className={`bk${b.status === "cancelled" ? " cancelled" : ""}`}>
                   <div className="bk-time">
-                    <b className="mono">{fmtInZone(b.startsAt, tz, { hour: "2-digit", minute: "2-digit" })}</b>
-                    <span>{upcoming && b.status === "confirmed" ? relative(b.startsAt, now) : `→ ${fmtInZone(b.endsAt, tz, { hour: "2-digit", minute: "2-digit" })}`}</span>
+                    <b className="mono">{fmtInZone(b.startsAt, tz, { hour: "numeric", minute: "2-digit" })}</b>
+                    <span>{upcoming && b.status === "confirmed" ? relative(b.startsAt, now) : `→ ${fmtInZone(b.endsAt, tz, { hour: "numeric", minute: "2-digit" })}`}</span>
                   </div>
                   <div style={{ minWidth: 0 }}>
                     <div className="bk-name" title={b.name}>
@@ -204,14 +206,20 @@ export default function Bookings({ bookings, setBookings, settings, reload, toas
                   <div className="bk-contact-col" style={{ minWidth: 0, display: "grid", gap: 4 }}>
                     <div className="bk-contact" style={{ color: `var(--${b.platform})` }}>
                       <PlatformIcon platform={b.platform} size={16} />
-                      {b.platform === "telegram" ? (
-                        <a href={`https://t.me/${b.handle}`} target="_blank" rel="noreferrer" style={{ color: "var(--text)" }}>
-                          @{b.handle}
-                        </a>
-                      ) : (
+                      {b.platform === "discord" ? (
                         <span className="h" style={{ color: "var(--text)" }}>
                           @{b.handle}
                         </span>
+                      ) : (
+                        <a
+                          href={b.platform === "telegram" ? `https://t.me/${b.handle}` : `mailto:${b.handle}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={b.platform === "meet" ? "Google Meet invite email" : undefined}
+                          style={{ color: "var(--text)" }}
+                        >
+                          {displayHandle(b.handle, b.platform)}
+                        </a>
                       )}
                       <button className="copy-btn" onClick={() => copy(b.handle)} aria-label={`Copy ${b.handle}`}>
                         <CopyIcon />

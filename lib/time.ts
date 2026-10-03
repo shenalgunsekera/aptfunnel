@@ -16,13 +16,20 @@ export function todayKey(tz: string) {
   return dateKey(Date.now(), tz);
 }
 
-export function formatTime(iso: string, tz: string, hour12: boolean) {
+export function formatTime(iso: string, tz: string) {
   return new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
-    hour: hour12 ? "numeric" : "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-    hour12,
+    hour12: true,
   }).format(new Date(iso));
+}
+
+/** "HH:mm" (stored 24h) → "9:00 AM"; "24:00" is the end of the day */
+export function label12(hhmm: string) {
+  const [h, m] = hhmm.split(":").map(Number);
+  if (h === 24) return "12:00 AM (midnight)";
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 }
 
 /** Noon UTC on that calendar date, safe for formatting the date itself */
@@ -96,21 +103,4 @@ export function allTimezones(current: string): string[] {
   if (!list.includes("UTC")) list = ["UTC", ...list];
   if (current && !list.includes(current)) list = [current, ...list];
   return list;
-}
-
-export function browserTimezone() {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  } catch {
-    return "UTC";
-  }
-}
-
-export function prefers12h() {
-  try {
-    const hc = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hourCycle;
-    return hc === "h12" || hc === "h11";
-  } catch {
-    return false;
-  }
 }

@@ -8,6 +8,7 @@ import {
   CheckIcon,
   ClockIcon,
   DiscordIcon,
+  MeetIcon,
   GlobeIcon,
   PhoneIcon,
   TelegramIcon,
@@ -20,52 +21,66 @@ import {
   todayKey,
   tzLabel,
 } from "@/lib/time";
-import { EMAIL, cleanHandle, handleError } from "@/lib/validate";
+import { EMAIL, PLATFORM_NAME, cleanHandle, displayHandle, handleError } from "@/lib/validate";
 import type { MeetingType, Platform } from "@/lib/types";
 
 const COPY: Record<MeetingType, { title: string; lead: string; how: string; Icon: typeof PhoneIcon }> = {
   call: {
     title: "Book a voice call",
     lead: "A 1-on-1 voice call with an agent. We'll get you set up on ClubGG and answer anything you want to know.",
-    how: "Voice call on Discord or Telegram",
+    how: "Voice call on Discord, Telegram or Google Meet",
     Icon: PhoneIcon,
   },
   text: {
     title: "Book a text chat",
     lead: "Prefer typing? Pick a time and an agent will message you directly for a live 1-on-1 chat.",
-    how: "Live chat on Discord or Telegram",
+    how: "Live chat on Discord, Telegram or Google Meet",
     Icon: ChatIcon,
   },
 };
 
 type Step = "time" | "details" | "done";
 type Avail = { enabled: boolean; slotMinutes: number; timezone: string; slots: string[] };
-type Form = { name: string; clubgg: string; email: string; platform: Platform | null; handle: string; note: string };
+type Form = {
+  name: string;
+  clubgg: string;
+  email: string;
+  platform: Platform | null;
+  handle: string;
+  /** Google Meet: send the invite to the main email, or to meetEmail */
+  meetSame: boolean;
+  meetEmail: string;
+  note: string;
+};
 
-const EMPTY_FORM: Form = { name: "", clubgg: "", email: "", platform: null, handle: "", note: "" };
-const PREFS_KEY = "tpa:prefs:v2";
+const EMPTY_FORM: Form = {
+  name: "",
+  clubgg: "",
+  email: "",
+  platform: null,
+  handle: "",
+  meetSame: true,
+  meetEmail: "",
+  note: "",
+};
 
-function readPrefs(): { hour12?: boolean } {
-  try {
-    return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}");
-  } catch {
-    return {};
-  }
+const PLATFORMS: { id: Platform; Icon: typeof DiscordIcon }[] = [
+  { id: "discord", Icon: DiscordIcon },
+  { id: "telegram", Icon: TelegramIcon },
+  { id: "meet", Icon: MeetIcon },
+];
+
+/** What gets stored as the contact: a chat username, or the Meet invite email */
+function contactOf(f: Form) {
+  if (f.platform === "meet") return (f.meetSame ? f.email : f.meetEmail).trim().toLowerCase();
+  return f.platform ? cleanHandle(f.handle, f.platform) : "";
 }
-
-function writePrefs(p: { hour12: boolean }) {
-  try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify(p));
-  } catch {}
-}
-
 export default function BookingFlow({ type }: { type: MeetingType }) {
   const copy = COPY[type];
 
   // Empty until availability loads; then the business timezone unless the player picks another
   const [tz, setTz] = useState("");
   const ready = tz !== "";
-  const [hour12, setHour12] = useState(true);
   const [avail, setAvail] = useState<Avail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -84,17 +99,6 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
   const mainRef = useRef<HTMLDivElement>(null);
   const stepRef = useRef(step);
   stepRef.current = step;
-
-  const prefsLoaded = useRef(false);
-  useEffect(() => {
-    const p = readPrefs();
-    if (typeof p.hour12 === "boolean") setHour12(p.hour12);
-    prefsLoaded.current = true;
-  }, []);
-
-  useEffect(() => {
-    if (prefsLoaded.current) writePrefs({ hour12 });
-  }, [hour12]);
 
   const load = useCallback(
     async (silent = false) => {
@@ -162,7 +166,7 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
   }, [avail, slot, step]);
 
   const daySlots = (day && byDay.get(day)) || [];
-  const fmt = (iso: string) => formatTime(iso, tz, hour12);
+  const fmt = (iso: string) => formatTime(iso, tz);
   const slotEnd = (iso: string) => new Date(Date.parse(iso) + (avail?.slotMinutes ?? 30) * 60_000).toISOString();
 
   function go(next: Step) {
@@ -186,8 +190,10 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
     if (form.name.trim().length < 2) e.name = "Enter your name";
     if (!form.clubgg.trim()) e.clubgg = "Enter your ClubGG account name";
     if (!EMAIL.test(form.email.trim())) e.email = "Enter a valid email";
-    if (!form.platform) e.platform = "Choose Discord or Telegram";
-    else {
+    if (!form.platform) e.platform = "Choose Discord, Telegram or Google Meet";
+    else if (form.platform === "meet") {
+      if (!form.meetSame && !EMAIL.test(form.meetEmail.trim())) e.meetEmail = "Enter a valid email for the Meet invite";
+    } else {
       const he = handleError(cleanHandle(form.handle, form.platform), form.platform);
       if (he) e.handle = he;
     }
@@ -209,7 +215,17 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...form, type, start: slot, website: honeypot }),
+        body: JSON.stringify({
+          type,
+          name: form.name,
+          clubgg: form.clubgg,
+          email: form.email,
+          platform: form.platform,
+          handle: contactOf(form),
+          note: form.note,
+          start: slot,
+          website: honeypot,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -224,13 +240,28 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
         go("time");
         return;
       }
-      if (data.fields) setErrors(data.fields);
+      if (data.fields) {
+        const { handle, ...rest } = data.fields;
+        setErrors(handle ? { ...rest, [form.platform === "meet" ? "meetEmail" : "handle"]: handle } : rest);
+      }
       setSubmitError(data.error || "Something went wrong. Please try again.");
     } catch {
       setSubmitError("Network error. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  // Mobile keyboards: Enter / "Next" moves to the next field instead of submitting early
+  function nextOnEnter(e: React.KeyboardEvent<HTMLFormElement>) {
+    const el = e.target as HTMLElement;
+    if (e.key !== "Enter" || el.tagName !== "INPUT") return;
+    e.preventDefault();
+    const contact = !form.platform ? "platform" : form.platform !== "meet" ? "handle" : form.meetSame ? "" : "meetEmail";
+    const order = ["name", "clubgg", "email", contact, "note"].filter(Boolean);
+    const i = order.indexOf(el.getAttribute("name") ?? "");
+    const next = order[i + 1];
+    if (next) mainRef.current?.querySelector<HTMLElement>(`[name="${next}"]`)?.focus();
   }
 
   function restart() {
@@ -252,7 +283,7 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
         : "Pick a platform first";
 
   return (
-    <div className="booking">
+    <div className={`booking${slot && step === "time" ? " has-cta" : ""}`}>
       <aside className="booking-aside">
         <div>
           <div className="eyebrow">ThatPokerAgent</div>
@@ -278,7 +309,7 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
           )}
         </div>
         {slot && step !== "done" && (
-          <div className="picked" key={slot}>
+          <div className={`picked${step === "time" ? " at-time" : ""}`} key={slot}>
             <div className="eyebrow" style={{ marginBottom: 6 }}>
               Selected
             </div>
@@ -359,14 +390,6 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
                         </option>
                       ))}
                     </select>
-                    <div className="seg-mini" role="group" aria-label="Clock format">
-                      <button type="button" aria-pressed={hour12} onClick={() => setHour12(true)}>
-                        12h
-                      </button>
-                      <button type="button" aria-pressed={!hour12} onClick={() => setHour12(false)}>
-                        24h
-                      </button>
-                    </div>
                   </div>
                 </div>
 
@@ -410,6 +433,18 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
                 </div>
               </div>
             )}
+
+            {slot && (
+              <div className="mobile-cta" key={slot}>
+                <div>
+                  <strong>{fmt(slot)}</strong>
+                  <span>{formatDay(dateKey(slot, tz), { weekday: "long", month: "short", day: "numeric" })}</span>
+                </div>
+                <button type="button" className="btn btn-primary" onClick={() => go("details")}>
+                  Next →
+                </button>
+              </div>
+            )}
           </section>
         )}
 
@@ -426,13 +461,14 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
               </div>
             )}
 
-            <form className="form" onSubmit={submit} noValidate>
+            <form className="form" onSubmit={submit} onKeyDown={nextOnEnter} noValidate>
               <div className="field-row">
                 <Field label="Full name" error={errors.name}>
                   <input
                     data-autofocus
                     className="input"
                     name="name"
+                    enterKeyHint="next"
                     autoComplete="name"
                     placeholder="John Smith"
                     value={form.name}
@@ -444,6 +480,7 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
                   <input
                     className="input"
                     name="clubgg"
+                    enterKeyHint="next"
                     autoComplete="off"
                     spellCheck={false}
                     placeholder="Your ClubGG nickname"
@@ -458,6 +495,7 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
                 <input
                   className="input"
                   name="email"
+                    enterKeyHint="next"
                   type="email"
                   inputMode="email"
                   autoComplete="email"
@@ -473,7 +511,7 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
                   Where should we meet?
                 </span>
                 <div className="platforms" role="radiogroup" aria-labelledby="platform-label">
-                  {(["discord", "telegram"] as const).map((p) => (
+                  {PLATFORMS.map(({ id: p, Icon }) => (
                     <button
                       key={p}
                       type="button"
@@ -484,19 +522,81 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
                       style={{ ["--brand" as any]: `var(--${p})` }}
                       onClick={() => {
                         set("platform", p);
-                        requestAnimationFrame(() =>
-                          mainRef.current?.querySelector<HTMLInputElement>('[name="handle"]')?.focus(),
-                        );
+                        if (p !== "meet") {
+                          requestAnimationFrame(() =>
+                            mainRef.current?.querySelector<HTMLInputElement>('[name="handle"]')?.focus(),
+                          );
+                        }
                       }}
                     >
-                      {p === "discord" ? <DiscordIcon size={22} /> : <TelegramIcon size={22} />}
-                      {p === "discord" ? "Discord" : "Telegram"}
+                      <Icon size={22} />
+                      <span>{PLATFORM_NAME[p]}</span>
                     </button>
                   ))}
                 </div>
                 {errors.platform && <span className="error-text">{errors.platform}</span>}
               </div>
 
+              {form.platform === "meet" ? (
+                <div className={`field step${errors.meetEmail ? " invalid" : ""}`}>
+                  <span className="label" id="meet-label">
+                    Send the Google Meet invite to
+                  </span>
+                  <div className="choices" role="radiogroup" aria-labelledby="meet-label">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={form.meetSame}
+                      className="choice"
+                      onClick={() => set("meetSame", true)}
+                    >
+                      <span className="choice-dot" aria-hidden />
+                      <span className="choice-text">
+                        <strong>Same email as above</strong>
+                        <small>{form.email.trim() || "Enter your email above"}</small>
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={!form.meetSame}
+                      className="choice"
+                      onClick={() => {
+                        set("meetSame", false);
+                        requestAnimationFrame(() =>
+                          mainRef.current?.querySelector<HTMLInputElement>('[name="meetEmail"]')?.focus(),
+                        );
+                      }}
+                    >
+                      <span className="choice-dot" aria-hidden />
+                      <span className="choice-text">
+                        <strong>A different email</strong>
+                        <small>For example, your Google account</small>
+                      </span>
+                    </button>
+                  </div>
+                  {!form.meetSame && (
+                    <input
+                      className="input step"
+                      name="meetEmail"
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      enterKeyHint="next"
+                      placeholder="you@gmail.com"
+                      aria-label="Email for the Google Meet invite"
+                      value={form.meetEmail}
+                      maxLength={120}
+                      onChange={(e) => set("meetEmail", e.target.value)}
+                    />
+                  )}
+                  {errors.meetEmail ? (
+                    <span className="error-text">{errors.meetEmail}</span>
+                  ) : (
+                    <span className="hint">We&apos;ll email you a Google Meet link for your meeting.</span>
+                  )}
+                </div>
+              ) : (
               <Field label={handleLabel} error={errors.handle} hint={errors.handle ? undefined : handleHint}>
                 <div className="handle">
                   <span className="handle-prefix" aria-hidden>
@@ -510,6 +610,7 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
                   <input
                     className="input"
                     name="handle"
+                    enterKeyHint="next"
                     autoComplete="off"
                     autoCapitalize="none"
                     spellCheck={false}
@@ -521,6 +622,7 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
                   />
                 </div>
               </Field>
+              )}
 
               <Field label="Anything we should know?" optional>
                 <textarea
@@ -568,10 +670,19 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
             </div>
             <h2>You&apos;re booked in.</h2>
             <p className="muted" style={{ margin: 0 }}>
-              An agent will reach out to{" "}
-              <strong style={{ color: "var(--text)" }}>@{cleanHandle(form.handle, form.platform!)}</strong> on{" "}
-              {form.platform === "discord" ? "Discord" : "Telegram"} at the time below.
-              {form.platform === "discord" && " Make sure your Discord accepts friend requests and DMs."}
+              {form.platform === "meet" ? (
+                <>
+                  We&apos;ll send a Google Meet invite to{" "}
+                  <strong style={{ color: "var(--text)" }}>{contactOf(form)}</strong> for the time below.
+                </>
+              ) : (
+                <>
+                  An agent will reach out to{" "}
+                  <strong style={{ color: "var(--text)" }}>{displayHandle(contactOf(form), form.platform!)}</strong> on{" "}
+                  {PLATFORM_NAME[form.platform!]} at the time below.
+                  {form.platform === "discord" && " Make sure your Discord accepts friend requests and DMs."}
+                </>
+              )}
             </p>
             <dl className="summary">
               <div className="summary-row">
@@ -592,8 +703,8 @@ export default function BookingFlow({ type }: { type: MeetingType }) {
                 <dd>{type === "call" ? "Voice call" : "Text chat"}</dd>
               </div>
               <div className="summary-row">
-                <dt>{form.platform === "discord" ? "Discord" : "Telegram"}</dt>
-                <dd>@{cleanHandle(form.handle, form.platform!)}</dd>
+                <dt>{PLATFORM_NAME[form.platform!]}</dt>
+                <dd>{displayHandle(contactOf(form), form.platform!)}</dd>
               </div>
               <div className="summary-row">
                 <dt>ClubGG</dt>

@@ -6,12 +6,22 @@ export const DISCORD = /^(?!.*\.\.)[a-z0-9_.]{2,32}$/;
 // Telegram: 5-32 chars, letters, digits, _ ; must start with a letter
 export const TELEGRAM = /^[a-zA-Z][a-zA-Z0-9_]{4,31}$/;
 
+export const PLATFORM_NAME: Record<Platform, string> = { discord: "Discord", telegram: "Telegram", meet: "Google Meet" };
+
+/** For Google Meet the "handle" is the email the invite goes to */
 export function cleanHandle(raw: string, platform: Platform) {
+  if (platform === "meet") return raw.trim().toLowerCase();
   const h = raw.trim().replace(/^@+/, "");
   return platform === "discord" ? h.toLowerCase() : h;
 }
 
+/** "@name" for chat apps, the plain email for Google Meet */
+export function displayHandle(handle: string, platform: Platform) {
+  return platform === "meet" ? handle : `@${handle}`;
+}
+
 export function handleError(handle: string, platform: Platform): string | null {
+  if (platform === "meet") return EMAIL.test(handle) ? null : "Enter a valid email for the Meet invite";
   if (!handle) return platform === "discord" ? "Enter your Discord username" : "Enter your Telegram username";
   if (platform === "discord" && !DISCORD.test(handle))
     return "2–32 characters: lowercase letters, numbers, _ and .";
@@ -36,7 +46,7 @@ export function validateBooking(body: any): { data?: BookingInput; errors?: Reco
   const str = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
 
   const type = body?.type === "text" ? "text" : body?.type === "call" ? "call" : null;
-  const platform = body?.platform === "telegram" ? "telegram" : body?.platform === "discord" ? "discord" : null;
+  const platform: Platform | null = ["discord", "telegram", "meet"].includes(body?.platform) ? body.platform : null;
   const name = str(body?.name, 80);
   const clubgg = str(body?.clubgg, 40);
   const email = str(body?.email, 120).toLowerCase();
@@ -47,8 +57,10 @@ export function validateBooking(body: any): { data?: BookingInput; errors?: Reco
   if (name.length < 2) errors.name = "Enter your name";
   if (!clubgg) errors.clubgg = "Enter your ClubGG account name";
   if (!EMAIL.test(email)) errors.email = "Enter a valid email";
-  if (!platform) errors.platform = "Choose Discord or Telegram";
-  const handle = platform ? cleanHandle(str(body?.handle, 40), platform) : "";
+  if (!platform) errors.platform = "Choose Discord, Telegram or Google Meet";
+  // Google Meet with no separate address uses the main email
+  const rawHandle = platform === "meet" ? str(body?.handle, 120) || email : str(body?.handle, 40);
+  const handle = platform ? cleanHandle(rawHandle, platform) : "";
   if (platform) {
     const e = handleError(handle, platform);
     if (e) errors.handle = e;
