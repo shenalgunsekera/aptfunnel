@@ -22,9 +22,10 @@ export default function Header() {
             <Link href="/" aria-current={path === "/" ? "page" : undefined}>
               Voice call
             </Link>
+            {/* Text chat hidden from the menu for now; /text still works directly
             <Link href="/text" aria-current={path === "/text" ? "page" : undefined}>
               Text chat
-            </Link>
+            </Link> */}
           </nav>
         )}
       </div>
